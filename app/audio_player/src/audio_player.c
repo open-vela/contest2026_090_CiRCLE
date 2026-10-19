@@ -23,7 +23,7 @@
 #define TRIGGER_FILE  "/data/play_trigger"
 #define STATUS_FILE   "/data/play_status"
 #define DEFAULT_WAV   "/data/cicada.wav"
-#define AUDIO_DEVICE  "/dev/audio/pcm0"
+#define AUDIO_DEVICE  "/dev/audio/pcm0p"
 
 /* Minimal WAV header (16-bit PCM) */
 
@@ -86,6 +86,11 @@ static int audio_configure(int fd, int sample_rate, int channels, int bps)
       return -errno;
     }
 
+  /* Prime the lower-half DMA buffer (lazy alloc happens on enqueue) */
+  static const int16_t silence[512] = {0};
+  ssize_t wn = write(fd, silence, sizeof(silence));
+  printf("[audio_player] prime write: %d (errno=%d)\n", (int)wn, errno);
+
   ret = ioctl(fd, AUDIOIOC_START, 0);
   printf("[audio_player] AUDIOIOC_START returned: %d (errno=%d)\n", ret, errno);
   if (ret < 0)
@@ -114,8 +119,6 @@ static int play_tone(int duration_ms)
       printf("[audio_player] Cannot open %s: %d\n", AUDIO_DEVICE, errno);
       return -errno;
     }
-
-  /* Configure audio device */
 
   audio_configure(audio_fd, sample_rate, 1, 16);
 
